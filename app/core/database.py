@@ -22,20 +22,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+
 class Vaga(Base):
     __tablename__ = "vagas"
 
     id = Column(Integer, primary_key=True, index=True)
     id_vaga_hash = Column(String, unique=True, index=True, nullable=False)
-    plataforma = Column(String, index=True)       # Ex: InfoJobs, LinkedIn
-    cargo_buscado = Column(String, index=True)    # Ex: Desenvolvedor Backend
-    titulo = Column(String, nullable=False)       # Título real da vaga
+    plataforma = Column(String, index=True)  # Ex: InfoJobs, LinkedIn
+    cargo_buscado = Column(String, index=True)  # Ex: Desenvolvedor Backend
+    titulo = Column(String, nullable=False)  # Título real da vaga
     empresa = Column(String)
     localizacao = Column(String)
-    modalidade = Column(String)                   # Remoto, Presencial
-    regime = Column(String)                       # CLT, PJ
+    modalidade = Column(String)  # Remoto, Presencial
+    regime = Column(String)  # CLT, PJ
     salario = Column(String)
-    descricao = Column(Text)                      # Text é usado para strings gigantes (como a descrição da vaga)
+    descricao = Column(
+        Text
+    )  # Text é usado para strings gigantes (como a descrição da vaga)
     link = Column(String)
     data_extracao = Column(DateTime, default=datetime.utcnow)
 
@@ -46,6 +49,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     print("Banco de dados sincronizado com sucesso!")
 
+
 def get_db():
     """Gera uma sessão segura para a API usar e fecha logo depois."""
     db = SessionLocal()
@@ -53,6 +57,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     init_db()
