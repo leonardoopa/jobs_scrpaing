@@ -2,8 +2,6 @@ import asyncio
 import logging
 import httpx
 from bs4 import BeautifulSoup
-import json
-import redis
 import os
 import hashlib
 from dotenv import load_dotenv
@@ -45,21 +43,22 @@ class InfoJobsWorker:
                 regime=vaga_padronizada["regime"],
                 salario=vaga_padronizada["salario"],
                 descricao=vaga_padronizada["descricao"],
-                link=vaga_padronizada["link"]
+                link=vaga_padronizada["link"],
             )
             logger.info(f"Salvando vaga {vaga_padronizada['titulo']} no Postgres...")
             db.add(nova_vaga)
             logger.info(f"Vaga {vaga_padronizada['titulo']} salva com sucesso!")
             db.commit()
-            
+
         except IntegrityError:
             db.rollback()
         except Exception as e:
             db.rollback()
-            logger.error(f"Erro ao salvar vaga {vaga_padronizada['titulo']} no Postgres: {e}")
+            logger.error(
+                f"Erro ao salvar vaga {vaga_padronizada['titulo']} no Postgres: {e}"
+            )
         finally:
-            db.close() 
-
+            db.close()
 
     async def varrer_vagas(self, lista_cargos, lista_cidades, max_paginas=10):
         """Método Orquestrador do Worker."""
