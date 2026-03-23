@@ -2,9 +2,9 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 
-from Bots_Sites.bot_infojobs import InfoJobsWorker
-from Bots_Sites.bot_linkedin import LinkedinWorker
-from Bots_Sites.bot_geekhunter import GeekHunterWorker
+from app.scrapers.infojobs import InfoJobsWorker
+from app.scrapers.linkedin import LinkedinWorker
+from app.scrapers.geekhunter import GeekHunterWorker
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

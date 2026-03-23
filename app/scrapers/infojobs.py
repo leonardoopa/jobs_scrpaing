@@ -2,11 +2,11 @@ import asyncio
 import logging
 import httpx
 from bs4 import BeautifulSoup
-import json
-import redis
 import os
 import hashlib
 from dotenv import load_dotenv
+from app.core.database import SessionLocal, Vaga
+from sqlalchemy.exc import IntegrityError
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
@@ -23,48 +23,44 @@ class InfoJobsWorker:
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         }
-        self.redis_client = self._conectar_redis()
-
-    def _conectar_redis(self):
-        """Gerencia a conexão com o Redis com fallback seguro."""
-        host = os.getenv("REDIS_HOST", "localhost")
-        port = int(os.getenv("REDIS_PORT", 6379))
-
-        try:
-            client = redis.Redis(
-                host=host, port=port, db=0, decode_responses=True, socket_timeout=3
-            )
-            client.ping()
-            logger.info(f"Conectado ao Redis com sucesso ({host}:{port})")
-            return client
-        except Exception as e:
-            logger.warning(
-                f"Redis indisponível ({host}:{port}). O bot vai rodar no modo de testes (apenas exibição)."
-            )
-            return None
 
     def _gerar_id_unico(self, link):
         """Cria um ID único baseado no link da vaga (MD5 Hash)"""
         return hashlib.md5(link.encode("utf-8")).hexdigest()
 
-    def _salvar_vaga(self, vaga_padronizada):
-        """Isola a lógica de persistência de dados no banco."""
-        if self.redis_client:
-            try:
-                self.redis_client.hset(
-                    "vagas_database",
-                    vaga_padronizada["id_vaga"],
-                    json.dumps(vaga_padronizada),
-                )
-            except Exception as e:
-                logger.error(
-                    f"Erro ao salvar vaga {vaga_padronizada['titulo']} no Redis: {e}"
-                )
-        else:
-            # Em ambiente local sem banco
-            pass
+    def _salvar_vagas(self, vaga_padronizada):
+        """Isola a lógica de persistência de dados no banco PostgreSQL."""
+        db = SessionLocal()
+        try:
+            nova_vaga = Vaga(
+                id_vaga_hash=vaga_padronizada["id_vaga"],
+                plataforma=vaga_padronizada["plataforma"],
+                cargo_buscado=vaga_padronizada["cargo_buscado"],
+                titulo=vaga_padronizada["titulo"],
+                empresa=vaga_padronizada["empresa"],
+                localizacao=vaga_padronizada["localizacao"],
+                modalidade=vaga_padronizada["modalidade"],
+                regime=vaga_padronizada["regime"],
+                salario=vaga_padronizada["salario"],
+                descricao=vaga_padronizada["descricao"],
+                link=vaga_padronizada["link"],
+            )
+            logger.info(f"Salvando vaga {vaga_padronizada['titulo']} no Postgres...")
+            db.add(nova_vaga)
+            logger.info(f"Vaga {vaga_padronizada['titulo']} salva com sucesso!")
+            db.commit()
 
-    async def varrer_vagas(self, lista_cargos, lista_cidades, max_paginas=2):
+        except IntegrityError:
+            db.rollback()
+        except Exception as e:
+            db.rollback()
+            logger.error(
+                f"Erro ao salvar vaga {vaga_padronizada['titulo']} no Postgres: {e}"
+            )
+        finally:
+            db.close()
+
+    async def varrer_vagas(self, lista_cargos, lista_cidades, max_paginas=10):
         """Método Orquestrador do Worker."""
         async with httpx.AsyncClient(headers=self.headers, timeout=20.0) as client:
             for cidade in lista_cidades:
@@ -163,7 +159,7 @@ class InfoJobsWorker:
                         "link": link,
                     }
 
-                    self._salvar_vaga(vaga_padronizada)
+                    self._salvar_vagas(vaga_padronizada)
                     vagas_salvas_nesta_pagina += 1
                     logger.info(f" ---> Capturada: {titulo}")
 
@@ -183,6 +179,6 @@ if __name__ == "__main__":
 
     async def testar_infojobs():
         worker = InfoJobsWorker()
-        await worker.varrer_vagas(["Desenvolvedor"], [""], max_paginas=1)
+        await worker.varrer_vagas(["Dentista"], ["Recife"], max_paginas=10)
 
     asyncio.run(testar_infojobs())
